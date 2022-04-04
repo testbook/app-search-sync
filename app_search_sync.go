@@ -1,0 +1,66 @@
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/rwynn/gtm"
+	"github.com/testbook/app-search-sync/client"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+const (
+	Name                     = "app-search-sync"
+	Version                  = "1.0.0"
+	mongoUrlDefault          = "mongodb://localhost:27017"
+	indexClientsDefault      = 10
+	indexClientBufferDefault = 10
+	resumeNameDefault        = "default"
+	gtmChannelSizeDefault    = 512
+)
+
+var exitStatus = 0
+
+func main() {
+	config := &configOptions{
+		GtmSettings: GtmDefaultSettings(),
+	}
+	config.ParseCommandLineFlags()
+	config.LoadConfigFile().SetDefaults().LoadPlugin()
+
+	if len(config.EngineConfig) == 0 {
+		config.ErrorLogger.Fatalln("No engine configuration found")
+	}
+
+	mongoClient, err := config.DialMongo()
+	if err != nil {
+		config.ErrorLogger.Fatalf("Unable to connect to mongodb using URL %s: %s",
+			cleanMongoURL(config.MongoURL), err)
+	}
+	defer mongoClient.Disconnect(context.Background())
+
+	client, err := client.NewHTTPClient(config.GetHTTPConfig())
+	if err != nil {
+		config.ErrorLogger.Fatalf("Unable to create client: %s", err)
+	}
+	defer client.Close()
+
+	gtmCtx := gtm.StartMulti([]*mongo.Client{mongoClient}, config.buildGtmOptions())
+	ic := &indexClient{
+		tokens: bson.M{},
+		client: client,
+		config: config,
+		gtmCtx: gtmCtx,
+		mongo:  mongoClient,
+	}
+	if err = ic.setupEngines(); err != nil {
+		config.ErrorLogger.Fatalf("Error to setup engines: %s", err)
+	}
+	ic.start()
+
+	stopC := make(chan bool, 1)
+	<-stopC
+
+	os.Exit(exitStatus)
+}

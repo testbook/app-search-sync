@@ -1,0 +1,13 @@
+
+app-search-clients = 1
+direct-reads = true
+plugin-path = "/Users/jay/api/app-search-sync-plugins/mappings.so"
+resume = true
+resume-strategy = 1
+
+[[engineConfig]]
+name = "targets-sync-test"
+namespace = "tb_dev.targets"
+changeStreamNS = "tb_dev.targets"
+directReadNS = "tb_dev.targets"
+functionName = "TargetsMapping"
