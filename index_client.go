@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rwynn/gtm"
 	"github.com/testbook/app-search-sync/client"
@@ -22,15 +23,17 @@ type indexEngineCtx struct {
 }
 
 type indexClient struct {
-	gtmCtx  *gtm.OpCtxMulti
-	config  *configOptions
-	mongo   *mongo.Client
-	client  client.Client
-	indexWg *sync.WaitGroup
-	indexC  chan *gtm.Op
-	lastTs  primitive.Timestamp
-	tokens  bson.M
-	engines map[string]*indexEngineCtx
+	gtmCtx       *gtm.OpCtxMulti
+	config       *configOptions
+	mongo        *mongo.Client
+	client       client.Client
+	indexWg      *sync.WaitGroup
+	indexMutex   *sync.Mutex
+	indexC       chan *gtm.Op
+	lastTs       primitive.Timestamp
+	tokens       bson.M
+	lastUpdateTs time.Time
+	engines      map[string]*indexEngineCtx
 }
 
 type dbcol struct {
@@ -67,9 +70,16 @@ func (ic *indexClient) setupEngines() error {
 }
 
 func (ic *indexClient) batchIndex() (err error) {
-	points := 0
+	ic.indexMutex.Lock()
+	defer ic.indexMutex.Unlock()
+
+	docs := 0
 	for idx, e := range ic.engines {
-		points += len(e.docs)
+		if len(e.docs) == 0 {
+			continue
+		}
+
+		docs += len(e.docs)
 		if err = ic.client.Index(e.name, e.docs); err != nil {
 			break
 		}
@@ -77,10 +87,11 @@ func (ic *indexClient) batchIndex() (err error) {
 	}
 
 	if ic.config.Verbose {
-		if points > 0 {
-			ic.config.InfoLogger.Printf("%d points flushed\n", points)
+		if docs > 0 {
+			ic.config.InfoLogger.Printf("%d docs flushed\n", docs)
 		}
 	}
+	ic.lastUpdateTs = time.Now()
 	return
 }
 
@@ -180,7 +191,7 @@ func (ic *indexClient) addDocument(op *gtm.Op) error {
 	return nil
 }
 
-func (ic *indexClient) startIndex() {
+func (ic *indexClient) index() {
 	for {
 		select {
 		case err := <-ic.gtmCtx.ErrC:
@@ -226,7 +237,34 @@ func (ic *indexClient) directReads() {
 	}
 }
 
+func (ic *indexClient) startIndex() {
+	for i := 0; i < ic.config.AppSearchClients; i += 1 {
+		go ic.index()
+	}
+}
+
+func (ic *indexClient) flusher(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		<-ticker.C // Periodic flush
+
+		ic.config.InfoLogger.Println("batchingIndex from ticker")
+		if err := ic.batchIndex(); err != nil {
+			ic.config.ErrorLogger.Println("err in flusher", err)
+		}
+	}
+}
+
+func (ic *indexClient) startFlusher() {
+	if int64(ic.config.FlushInterval) > 0 {
+		go ic.flusher(time.Second * time.Duration(ic.config.FlushInterval))
+	}
+}
+
 func (ic *indexClient) start() {
-	go ic.startIndex()
+	ic.startIndex()
+	ic.startFlusher()
 	ic.directReads()
 }

@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	"github.com/rwynn/gtm"
 	"github.com/testbook/app-search-sync/client"
@@ -29,6 +32,11 @@ func main() {
 	config.ParseCommandLineFlags()
 	config.LoadConfigFile().SetDefaults().LoadPlugin()
 
+	sigs := make(chan os.Signal, 1)
+	stopC := make(chan bool, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
+	defer signal.Stop(sigs)
+
 	if len(config.EngineConfig) == 0 {
 		config.ErrorLogger.Fatalln("No engine configuration found")
 	}
@@ -47,20 +55,22 @@ func main() {
 	defer client.Close()
 
 	gtmCtx := gtm.StartMulti([]*mongo.Client{mongoClient}, config.buildGtmOptions())
+	defer gtmCtx.Stop()
 	ic := &indexClient{
-		tokens: bson.M{},
-		client: client,
-		config: config,
-		gtmCtx: gtmCtx,
-		mongo:  mongoClient,
+		indexMutex: &sync.Mutex{},
+		tokens:     bson.M{},
+		client:     client,
+		config:     config,
+		gtmCtx:     gtmCtx,
+		mongo:      mongoClient,
 	}
 	if err = ic.setupEngines(); err != nil {
 		config.ErrorLogger.Fatalf("Error to setup engines: %s", err)
 	}
 	ic.start()
 
-	stopC := make(chan bool, 1)
 	<-stopC
+	ic.config.InfoLogger.Println("Stopping all workers and shutting down")
 
 	os.Exit(exitStatus)
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/testbook/app-search-sync/client"
 	. "github.com/testbook/app-search-sync/plugin"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type engineConfig struct {
@@ -21,6 +22,11 @@ type engineConfig struct {
 	Plugin         MapperPlugin
 }
 
+type logFiles struct {
+	Error string
+	Info  string
+}
+
 type configOptions struct {
 	MongoURL                 string      `toml:"mongo-url"`
 	MongoOpLogDatabaseName   string      `toml:"mongo-oplog-database-name"`
@@ -28,21 +34,23 @@ type configOptions struct {
 	GtmSettings              gtmSettings `toml:"gtm-settings"`
 	ResumeName               string      `toml:"resume-name"`
 	Version                  bool
-	Verbose                  bool
+	Verbose                  bool           `toml:"verbose"`
 	Resume                   bool           `toml:"resume"`
 	ResumeStrategy           resumeStrategy `toml:"resume-strategy"`
 	ResumeWriteUnsafe        bool           `toml:"resume-write-unsafe"`
 	ResumeFromTimestamp      int64          `toml:"resume-from-timestamp"`
 	Replay                   bool
 	ConfigFile               string
-	AppSearchURL             string `toml:"app-search-url"`
-	AppSearchAPIKey          string `toml:"app-search-api-key"`
-	AppSearchClients         int    `toml:"app-search-clients"`
-	DirectReads              bool   `toml:"direct-reads"`
-	ChangeStreams            bool   `toml:"change-streams"`
-	ExitAfterDirectReads     bool   `toml:"exit-after-direct-reads"`
-	PluginPath               string `toml:"plugin-path"`
-	FlushBufferSize          int    `toml:"flush-buffer-size"`
+	AppSearchURL             string   `toml:"app-search-url"`
+	AppSearchAPIKey          string   `toml:"app-search-api-key"`
+	AppSearchClients         int      `toml:"app-search-clients"`
+	DirectReads              bool     `toml:"direct-reads"`
+	ChangeStreams            bool     `toml:"change-streams"`
+	ExitAfterDirectReads     bool     `toml:"exit-after-direct-reads"`
+	PluginPath               string   `toml:"plugin-path"`
+	FlushBufferSize          int      `toml:"flush-buffer-size"`
+	FlushInterval            int      `toml:"flush-interval"`
+	Logs                     logFiles `toml:"logs"`
 	EngineConfig             []*engineConfig
 
 	InfoLogger  *log.Logger
@@ -52,7 +60,7 @@ type configOptions struct {
 func (config *configOptions) ParseCommandLineFlags() *configOptions {
 	flag.StringVar(&config.AppSearchURL, "app-search-url", "", "App search connection URL")
 	flag.StringVar(&config.AppSearchAPIKey, "app-search-api-key", "", "App search api key")
-	flag.IntVar(&config.AppSearchClients, "app-search-clients", 0, "The number of concurrent app search clients")
+	flag.IntVar(&config.AppSearchClients, "app-search-clients", 1, "The number of concurrent app search clients")
 	flag.StringVar(&config.MongoURL, "mongo-url", "", "MongoDB connection URL")
 	flag.StringVar(&config.MongoOpLogDatabaseName, "mongo-oplog-database-name", "", "Override the database name which contains the mongodb oplog")
 	flag.StringVar(&config.MongoOpLogCollectionName, "mongo-oplog-collection-name", "", "Override the collection name which contains the mongodb oplog")
@@ -70,6 +78,7 @@ func (config *configOptions) ParseCommandLineFlags() *configOptions {
 	flag.BoolVar(&config.ChangeStreams, "change-streams", false, "Set to true to enable change streams for MongoDB 3.6+")
 	flag.BoolVar(&config.ExitAfterDirectReads, "exit-after-direct-reads", false, "Set to true to exit after direct reads are complete")
 	flag.IntVar(&config.FlushBufferSize, "flush-buffer-size", 10, "After this number of docs the batch is flushed to appsearch")
+	flag.IntVar(&config.FlushInterval, "flush-interval", 10, "Defined interval (in seconds) for which the batch is flushed to appsearch")
 	flag.Parse()
 	return config
 }
@@ -133,6 +142,14 @@ func (config *configOptions) LoadConfigFile() *configOptions {
 		if config.FlushBufferSize == 0 {
 			config.FlushBufferSize = tomlConfig.FlushBufferSize
 		}
+
+		if config.Logs.Error != "" {
+			config.ErrorLogger.SetOutput(config.newLogger(config.Logs.Error))
+		}
+		if config.Logs.Info != "" {
+			config.InfoLogger.SetOutput(config.newLogger(config.Logs.Info))
+		}
+
 		config.GtmSettings = tomlConfig.GtmSettings
 		config.EngineConfig = tomlConfig.EngineConfig
 	}
@@ -148,6 +165,9 @@ func (config *configOptions) SetDefaults() *configOptions {
 	}
 	if config.FlushBufferSize == 0 {
 		config.FlushBufferSize = indexClientBufferDefault
+	}
+	if config.AppSearchClients <= 0 {
+		config.AppSearchClients = 1
 	}
 	if config.InfoLogger == nil {
 		config.InfoLogger = log.New(os.Stdout, "INFO ", log.Flags())
@@ -199,4 +219,10 @@ func (config *configOptions) GetHTTPConfig() client.HTTPConfig {
 		APIKey:    config.AppSearchAPIKey,
 	}
 	return httpConfig
+}
+
+func (config *configOptions) newLogger(path string) *lumberjack.Logger {
+	return &lumberjack.Logger{
+		Filename: path,
+	}
 }

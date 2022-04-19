@@ -1,13 +1,19 @@
 
 app-search-clients = 1
 direct-reads = true
+verbose = true
 plugin-path = "/Users/jay/api/app-search-sync-plugins/mappings.so"
-resume = true
-resume-strategy = 1
+change-streams = true
+resume = false
+flush-interval = 10
+
+[logs]
+error = "/var/log/monstache/logs/error.log"
+info = "/var/log/monstache/logs/info.log"
 
 [[engineConfig]]
-name = "targets-sync-test"
-namespace = "tb_dev.targets"
-changeStreamNS = "tb_dev.targets"
-directReadNS = "tb_dev.targets"
+name = "targets-v1"
+namespace = "tb_dev.targets_jay"
+changeStreamNS = "tb_dev.targets_jay"
+directReadNS = "tb_dev.targets_jay"
 functionName = "TargetsMapping"

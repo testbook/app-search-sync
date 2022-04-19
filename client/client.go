@@ -43,6 +43,9 @@ type Client interface {
 	// Create or update documents (missing fields can be auto added
 	Index(string, []interface{}) error
 
+	// Query documents with search query service
+	Search(string, string, *SearchQuery, *PageQuery) (*SearchQueryResponse, error)
+
 	// Close releases any resources a Client may be using.
 	Close() error
 }
@@ -79,7 +82,8 @@ func (c *client) SetBearerAuth(r *http.Request) {
 	r.Header.Set("Authorization", "Bearer "+c.apiKey)
 }
 
-// https://www.elastic.co/guide/en/app-search/master/documents.html#documents-create
+// Upsert documents
+// <https://www.elastic.co/guide/en/app-search/master/documents.html#documents-create>
 func (c *client) Index(engine string, d []interface{}) error {
 	u := c.url
 	u.Path = path.Join(u.Path, "api/as/v1/engines", engine, "documents")
@@ -119,6 +123,54 @@ func (c *client) Index(engine string, d []interface{}) error {
 	}
 
 	return nil
+}
+
+// Query documents with filters
+// <https://www.elastic.co/guide/en/app-search/current/filters.html#filters-nesting-filters>
+func (c *client) Search(engine, term string, query *SearchQuery, page *PageQuery) (sqr *SearchQueryResponse, err error) {
+	u := c.url
+	u.Path = path.Join(u.Path, "api/as/v1/engines", engine, "search")
+
+	sqs := NewSearchQueryService(term, query, page)
+	src, err := sqs.Source()
+	if err != nil {
+		return
+	}
+
+	b, err := json.Marshal(src)
+	if err != nil {
+		return
+	}
+	fmt.Println("query", string(b))
+
+	req, err := http.NewRequest("GET", u.String(), bytes.NewBuffer(b))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", c.useragent)
+
+	if c.apiKey != "" {
+		c.SetBearerAuth(req)
+	}
+
+	r, err := c.httpClient.Do(req)
+	if err != nil {
+		return
+	}
+	defer r.Body.Close()
+
+	err = json.NewDecoder(r.Body).Decode(&sqr)
+	if err != nil {
+		return
+	}
+	x, _ := json.Marshal(sqr)
+	fmt.Println("response", string(x))
+
+	if r.StatusCode != http.StatusNoContent && r.StatusCode != http.StatusOK || len(sqr.Errors) > 0 || len(sqr.Meta.Warnings) > 0 {
+		err = fmt.Errorf("%+v", sqr)
+	}
+	return
 }
 
 // Close releases the client's resources.
