@@ -8,7 +8,7 @@ import (
 	"plugin"
 
 	"github.com/BurntSushi/toml"
-	"github.com/testbook/app-search-sync/client"
+	client "github.com/testbook/app-search-client"
 	. "github.com/testbook/app-search-sync/plugin"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -23,11 +23,14 @@ type engineConfig struct {
 }
 
 type logFiles struct {
-	Error string
-	Info  string
+	Error string `toml:"error"`
+	Info  string `toml:"info"`
 }
 
 type configOptions struct {
+	EnableHTTPServer         bool        `toml:"enable-http-server"`
+	HTTPServerAddr           string      `toml:"http-server-addr"` // port for http stats server
+	Logs                     logFiles    `toml:"logs"`
 	MongoURL                 string      `toml:"mongo-url"`
 	MongoOpLogDatabaseName   string      `toml:"mongo-oplog-database-name"`
 	MongoOpLogCollectionName string      `toml:"mongo-oplog-collection-name"`
@@ -35,22 +38,23 @@ type configOptions struct {
 	ResumeName               string      `toml:"resume-name"`
 	Version                  bool
 	Verbose                  bool           `toml:"verbose"`
+	Stats                    bool           `toml:"stats"`
+	Pprof                    bool           `toml:"pprof"`
 	Resume                   bool           `toml:"resume"`
 	ResumeStrategy           resumeStrategy `toml:"resume-strategy"`
 	ResumeWriteUnsafe        bool           `toml:"resume-write-unsafe"`
 	ResumeFromTimestamp      int64          `toml:"resume-from-timestamp"`
 	Replay                   bool
 	ConfigFile               string
-	AppSearchURL             string   `toml:"app-search-url"`
-	AppSearchAPIKey          string   `toml:"app-search-api-key"`
-	AppSearchClients         int      `toml:"app-search-clients"`
-	DirectReads              bool     `toml:"direct-reads"`
-	ChangeStreams            bool     `toml:"change-streams"`
-	ExitAfterDirectReads     bool     `toml:"exit-after-direct-reads"`
-	PluginPath               string   `toml:"plugin-path"`
-	FlushBufferSize          int      `toml:"flush-buffer-size"`
-	FlushInterval            int      `toml:"flush-interval"`
-	Logs                     logFiles `toml:"logs"`
+	AppSearchURL             string `toml:"app-search-url"`
+	AppSearchAPIKey          string `toml:"app-search-api-key"`
+	AppSearchClients         int    `toml:"app-search-clients"`
+	DirectReads              bool   `toml:"direct-reads"`
+	ChangeStreams            bool   `toml:"change-streams"`
+	ExitAfterDirectReads     bool   `toml:"exit-after-direct-reads"`
+	PluginPath               string `toml:"plugin-path"`
+	FlushBufferSize          int    `toml:"flush-buffer-size"`
+	FlushInterval            int    `toml:"flush-interval"`
 	EngineConfig             []*engineConfig
 
 	InfoLogger  *log.Logger
@@ -58,6 +62,8 @@ type configOptions struct {
 }
 
 func (config *configOptions) ParseCommandLineFlags() *configOptions {
+	flag.BoolVar(&config.EnableHTTPServer, "enable-http-server", false, "True to enable an internal http server")
+	flag.StringVar(&config.HTTPServerAddr, "http-server-addr", "", "The address the internal http server listens on")
 	flag.StringVar(&config.AppSearchURL, "app-search-url", "", "App search connection URL")
 	flag.StringVar(&config.AppSearchAPIKey, "app-search-api-key", "", "App search api key")
 	flag.IntVar(&config.AppSearchClients, "app-search-clients", 1, "The number of concurrent app search clients")
@@ -72,6 +78,8 @@ func (config *configOptions) ParseCommandLineFlags() *configOptions {
 	flag.Int64Var(&config.ResumeFromTimestamp, "resume-from-timestamp", 0, "Timestamp to resume syncing from")
 	flag.BoolVar(&config.ResumeWriteUnsafe, "resume-write-unsafe", false, "True to speedup writes of the last timestamp synched for resuming at the cost of error checking")
 	flag.BoolVar(&config.Replay, "replay", false, "True to replay all events from the oplog and index them in elasticsearch")
+	flag.BoolVar(&config.Stats, "stats", false, "Enable stats for updates")
+	flag.BoolVar(&config.Pprof, "pprof", false, "Enable pprof profiling")
 	flag.StringVar(&config.ResumeName, "resume-name", "", "Name under which to load/store the resume state. Defaults to 'default'")
 	flag.StringVar(&config.PluginPath, "plugin-path", "", "The file path to a .so file plugin")
 	flag.BoolVar(&config.DirectReads, "direct-reads", false, "Set to true to read directly from MongoDB collections")
@@ -90,6 +98,12 @@ func (config *configOptions) LoadConfigFile() *configOptions {
 		}
 		if _, err := toml.DecodeFile(config.ConfigFile, &tomlConfig); err != nil {
 			panic(err)
+		}
+		if !config.EnableHTTPServer && tomlConfig.EnableHTTPServer {
+			config.EnableHTTPServer = true
+		}
+		if config.HTTPServerAddr == "" {
+			config.HTTPServerAddr = tomlConfig.HTTPServerAddr
 		}
 		if config.AppSearchURL == "" {
 			config.AppSearchURL = tomlConfig.AppSearchURL
@@ -142,11 +156,20 @@ func (config *configOptions) LoadConfigFile() *configOptions {
 		if config.FlushBufferSize == 0 {
 			config.FlushBufferSize = tomlConfig.FlushBufferSize
 		}
+		if config.Stats || tomlConfig.Stats {
+			config.Stats = true
+		}
+		if config.Pprof || tomlConfig.Pprof {
+			config.Pprof = true
+		}
+		if config.HTTPServerAddr == "" {
+			config.HTTPServerAddr = tomlConfig.HTTPServerAddr
+		}
 
-		if config.Logs.Error != "" {
+		if config.Logs.Error == "" && tomlConfig.Logs.Error != "" {
 			config.ErrorLogger.SetOutput(config.newLogger(config.Logs.Error))
 		}
-		if config.Logs.Info != "" {
+		if config.Logs.Error == "" && tomlConfig.Logs.Info != "" {
 			config.InfoLogger.SetOutput(config.newLogger(config.Logs.Info))
 		}
 

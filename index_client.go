@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/rwynn/gtm"
-	"github.com/testbook/app-search-sync/client"
+	client "github.com/testbook/app-search-client"
 	"github.com/testbook/app-search-sync/plugin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -34,6 +34,7 @@ type indexClient struct {
 	tokens       bson.M
 	lastUpdateTs time.Time
 	engines      map[string]*indexEngineCtx
+	stats        *bulkProcessorStats
 }
 
 type dbcol struct {
@@ -81,11 +82,14 @@ func (ic *indexClient) batchIndex() (err error) {
 
 		docs += len(e.docs)
 		if err = ic.client.Index(e.name, e.docs); err != nil {
+			ic.stats.AddFailed(len(e.docs))
 			break
 		}
 		ic.engines[idx].docs = []interface{}{}
 	}
 
+	ic.stats.AddSucceeded(docs)
+	fmt.Printf("%+v\n", ic.stats)
 	if ic.config.Verbose {
 		if docs > 0 {
 			ic.config.InfoLogger.Printf("%d docs flushed\n", docs)

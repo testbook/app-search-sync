@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
 	"github.com/rwynn/gtm"
-	"github.com/testbook/app-search-sync/client"
+	client "github.com/testbook/app-search-client"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -20,6 +21,7 @@ const (
 	indexClientsDefault      = 10
 	indexClientBufferDefault = 10
 	resumeNameDefault        = "default"
+	defaultHttpAddr          = ":8010"
 	gtmChannelSizeDefault    = 512
 )
 
@@ -28,6 +30,8 @@ var exitStatus = 0
 func main() {
 	config := &configOptions{
 		GtmSettings: GtmDefaultSettings(),
+		InfoLogger:  log.New(os.Stdout, "INFO ", log.Flags()),
+		ErrorLogger: log.New(os.Stdout, "ERROR ", log.Flags()),
 	}
 	config.ParseCommandLineFlags()
 	config.LoadConfigFile().SetDefaults().LoadPlugin()
@@ -63,10 +67,14 @@ func main() {
 		config:     config,
 		gtmCtx:     gtmCtx,
 		mongo:      mongoClient,
+		stats: &bulkProcessorStats{
+			Enabled: config.Stats,
+		},
 	}
 	if err = ic.setupEngines(); err != nil {
 		config.ErrorLogger.Fatalf("Error to setup engines: %s", err)
 	}
+	go startHTTPServer(&httpServerCtx{indexConfig: ic})
 	ic.start()
 
 	<-stopC

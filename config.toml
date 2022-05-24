@@ -1,15 +1,20 @@
-
+mongo-url = ""
+app-search-url = ""
+app-search-api-key = ""
 app-search-clients = 1
 direct-reads = true
 verbose = true
 plugin-path = "/Users/jay/api/app-search-sync-plugins/mappings.so"
 change-streams = true
 resume = false
+stats = true
 flush-interval = 10
+http-server-addr = ":8010"
+pprof = true
 
 [logs]
-error = "/var/log/monstache/logs/error.log"
-info = "/var/log/monstache/logs/info.log"
+error = "/var/log/app-search/logs/error.log"
+info = "/var/app-searchmonstache/logs/info.log"
 
 [[engineConfig]]
 name = "targets-v1"
