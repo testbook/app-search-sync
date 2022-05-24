@@ -2,11 +2,11 @@
 
 ### TODO
 
- - [] Validation check when last sync mongo token isn't present in [mongo oplog](https://www.mongodb.com/docs/manual/core/replica-set-oplog/)
+ - [ ] Validation check when last sync mongo token isn't present in [mongo oplog](https://www.mongodb.com/docs/manual/core/replica-set-oplog/)
 
- - [] Logrotate implementation (possibly via independent process)
+ - [ ] Logrotate implementation (possibly via independent process)
 
- - [] Support for multiple mongo connections
+ - [ ] Support for multiple mongo connections
 
 ### Usage
 
