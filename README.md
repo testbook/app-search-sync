@@ -6,12 +6,12 @@
 
  - [ ] Logrotate implementation (possibly via independent process)
 
- - [ ] Support for multiple mongo connections
+ - [ ] Support to add connection from multiple mongo DB's
 
 ### Usage
 
  - Pass config path while running the binary
-    - ```bash
+    ```bash
         go run . -f {configFilePath}.toml
-        ```
+    ```
 
