@@ -12,13 +12,13 @@ flush-interval = 10
 http-server-addr = ":8010"
 pprof = true
 
-[logs]
-error = "/var/log/app-search/logs/error.log"
-info = "/var/app-searchmonstache/logs/info.log"
+# [logs]
+# error = "/var/log/app-search/logs/error.log"
+# info = "/var/app-searchmonstache/logs/info.log"
 
 [[engineConfig]]
-name = "targets-v1"
-namespace = "tb_dev.targets_jay"
-changeStreamNS = "tb_dev.targets_jay"
-directReadNS = "tb_dev.targets_jay"
+name = "targets"
+namespace = "tb_dev.targets"
+changeStreamNS = "tb_dev.targets"
+directReadNS = "tb_dev.targets"
 functionName = "TargetsMapping"
