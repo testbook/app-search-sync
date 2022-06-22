@@ -1,0 +1,24 @@
+mongo-url = ""
+app-search-url = ""
+app-search-api-key = ""
+app-search-clients = 1
+direct-reads = true
+verbose = true
+plugin-path = "/var/app-search-sync-plugins/mappings.so"
+change-streams = true
+resume = false
+stats = true
+flush-interval = 10
+http-server-addr = ":8010"
+pprof = true
+
+[logs]
+error = "/var/log/app-search/logs/error.log"
+info = "/var/app-searchmonstache/logs/info.log"
+
+[[engineConfig]]
+name = "targets"
+namespace = "tb_dev.targets"
+changeStreamNS = "tb_dev.targets"
+directReadNS = "tb_dev.targets"
+functionName = "TargetsMapping"

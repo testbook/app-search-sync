@@ -23,6 +23,7 @@ const (
 	resumeNameDefault        = "default"
 	defaultHttpAddr          = ":8010"
 	gtmChannelSizeDefault    = 512
+	defaultConfigFile        = "config.go"
 )
 
 var exitStatus = 0
@@ -37,7 +38,6 @@ func main() {
 	config.LoadConfigFile().SetDefaults().LoadPlugin()
 
 	sigs := make(chan os.Signal, 1)
-	stopC := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
 	defer signal.Stop(sigs)
 
@@ -77,7 +77,8 @@ func main() {
 	go startHTTPServer(&httpServerCtx{indexConfig: ic})
 	ic.start()
 
-	<-stopC
+	<-sigs
+	ic.batchIndex()
 	ic.config.InfoLogger.Println("Stopping all workers and shutting down")
 
 	os.Exit(exitStatus)
