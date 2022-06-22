@@ -7,7 +7,7 @@ import (
 type MapperPlugin func(*MapperPluginInput) (*MapperPluginOutput, error)
 
 type MapperPluginInput struct {
-	Id                string                 // original document id
+	Id                interface{}            // original document id
 	Data              map[string]interface{} // parsed map from data
 	Document          interface{}            // the original document from MongoDB
 	Database          string                 // the origin database in MongoDB

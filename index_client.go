@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -42,7 +41,7 @@ type dbcol struct {
 	col string
 }
 
-func (ic *indexClient) parseNamespace(namespace string) (*dbcol, error) {
+func parseNamespace(namespace string) (*dbcol, error) {
 	dbCol := strings.SplitN(namespace, ".", 2)
 	if len(dbCol) != 2 {
 		return nil, fmt.Errorf("view namespace is invalid: %s", namespace)
@@ -121,27 +120,12 @@ func (ic *indexClient) saveTs() (err error) {
 }
 
 func (ic *indexClient) lookupInView(orig *gtm.Op, namespace string) (op *gtm.Op, err error) {
-	v, err := ic.parseNamespace(namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	col := ic.mongo.Database(v.db).Collection(v.col)
-	result := col.FindOne(context.Background(), bson.M{
-		"_id": orig.Id,
-	})
-	if err = result.Err(); err == nil {
-		doc := make(map[string]interface{})
-		if err = result.Decode(&doc); err == nil {
-			op = &gtm.Op{
-				Id:        orig.Id,
-				Data:      doc,
-				Operation: orig.Operation,
-				Namespace: namespace,
-				Source:    gtm.DirectQuerySource,
-				Timestamp: orig.Timestamp,
-			}
-		}
+	op = &gtm.Op{
+		Id:        orig.Id,
+		Operation: orig.Operation,
+		Namespace: namespace,
+		Source:    gtm.DirectQuerySource,
+		Timestamp: orig.Timestamp,
 	}
 	return
 }
@@ -161,6 +145,7 @@ func (ic *indexClient) addDocument(op *gtm.Op) error {
 
 	if engine.plugin != nil {
 		inp := &plugin.MapperPluginInput{
+			Id:          op.Id,
 			Document:    op.Doc,
 			Data:        op.Data,
 			Database:    op.GetDatabase(),

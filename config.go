@@ -198,6 +198,9 @@ func (config *configOptions) SetDefaults() *configOptions {
 	if config.ErrorLogger == nil {
 		config.ErrorLogger = log.New(os.Stdout, "ERROR ", log.Flags())
 	}
+	if config.ConfigFile == "" {
+		config.ConfigFile = defaultConfigFile
+	}
 	return config
 }
 
