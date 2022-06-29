@@ -2,11 +2,8 @@ package main
 
 import (
 	"context"
-	"os"
-	"os/signal"
 	"reflect"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/rwynn/gtm"
@@ -69,46 +66,47 @@ func cleanMongoURL(URL string) string {
 	return url
 }
 
-func (config *configOptions) DialMongo() (*mongo.Client, error) {
+func (config *configOptions) DialMongo() (core, engagement, test *mongo.Client, err error) {
+	coreMongo, err := dialMongo(config.CoreMongoURL, config.Resume, config.ResumeWriteUnsafe)
+	if err != nil {
+		return
+	}
+	engagementMongo, err := dialMongo(config.EngagementMongoURL, config.Resume, config.ResumeWriteUnsafe)
+	if err != nil {
+		return
+	}
+	testMongo, err := dialMongo(config.TestMongoURL, config.Resume, config.ResumeWriteUnsafe)
+	if err != nil {
+		return
+	}
+	return coreMongo, engagementMongo, testMongo, nil
+}
+
+func dialMongo(url string, resume, resumeWriteUnsafe bool) (*mongo.Client, error) {
 	rb := bson.NewRegistryBuilder()
 	rb.RegisterTypeMapEntry(bsontype.DateTime, reflect.TypeOf(time.Time{}))
 	reg := rb.Build()
 	clientOptions := options.Client()
-	clientOptions.ApplyURI(config.MongoURL)
+	clientOptions.ApplyURI(url)
 	clientOptions.SetAppName(Name)
 	clientOptions.SetRegistry(reg)
-	if config.Resume && config.ResumeWriteUnsafe {
+	if resume && resumeWriteUnsafe {
 		clientOptions.SetWriteConcern(writeconcern.New(writeconcern.W(0), writeconcern.J(false)))
 	}
 	client, err := mongo.NewClient(clientOptions)
 	if err != nil {
 		return nil, err
 	}
-
-	mongoOk := make(chan bool)
-	go config.cancelConnection(mongoOk)
-	err = client.Connect(context.Background())
+	ctx, _ := context.WithTimeout(context.Background(), time.Second)
+	err = client.Connect(ctx)
 	if err != nil {
 		return nil, err
 	}
-	err = client.Ping(context.Background(), nil)
+	err = client.Ping(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	close(mongoOk)
 	return client, nil
-}
-
-func (config *configOptions) cancelConnection(mongoOk chan bool) {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
-	defer signal.Stop(sigs)
-	select {
-	case <-mongoOk:
-		return
-	case <-sigs:
-		os.Exit(exitStatus)
-	}
 }
 
 func saveTimestamp(client *mongo.Client, ts primitive.Timestamp, config *configOptions) error {

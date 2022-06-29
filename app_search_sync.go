@@ -26,8 +26,6 @@ const (
 	defaultConfigFile        = "config.go"
 )
 
-var exitStatus = 0
-
 func main() {
 	config := &configOptions{
 		GtmSettings: GtmDefaultSettings(),
@@ -37,20 +35,20 @@ func main() {
 	config.ParseCommandLineFlags()
 	config.LoadConfigFile().SetDefaults().LoadPlugin()
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
-	defer signal.Stop(sigs)
-
 	if len(config.EngineConfig) == 0 {
 		config.ErrorLogger.Fatalln("No engine configuration found")
 	}
 
-	mongoClient, err := config.DialMongo()
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+
+	coreMongo, engagementMongo, testMongo, err := config.DialMongo()
 	if err != nil {
-		config.ErrorLogger.Fatalf("Unable to connect to mongodb using URL %s: %s",
-			cleanMongoURL(config.MongoURL), err)
+		config.ErrorLogger.Fatalf("Unable to connect to mongodb: %s", err)
 	}
-	defer mongoClient.Disconnect(context.Background())
+	defer coreMongo.Disconnect(context.Background())
+	defer engagementMongo.Disconnect(context.Background())
+	defer testMongo.Disconnect(context.Background())
 
 	client, err := client.NewHTTPClient(config.GetHTTPConfig())
 	if err != nil {
@@ -58,15 +56,17 @@ func main() {
 	}
 	defer client.Close()
 
-	gtmCtx := gtm.StartMulti([]*mongo.Client{mongoClient}, config.buildGtmOptions())
+	gtmCtx := gtm.StartMulti([]*mongo.Client{coreMongo}, config.buildGtmOptions())
 	defer gtmCtx.Stop()
 	ic := &indexClient{
-		indexMutex: &sync.Mutex{},
-		tokens:     bson.M{},
-		client:     client,
-		config:     config,
-		gtmCtx:     gtmCtx,
-		mongo:      mongoClient,
+		indexMutex:      &sync.Mutex{},
+		tokens:          bson.M{},
+		client:          client,
+		config:          config,
+		gtmCtx:          gtmCtx,
+		coreMongo:       coreMongo,
+		engagementMongo: engagementMongo,
+		testMongo:       testMongo,
 		stats: &bulkProcessorStats{
 			Enabled: config.Stats,
 		},
@@ -74,12 +74,10 @@ func main() {
 	if err = ic.setupEngines(); err != nil {
 		config.ErrorLogger.Fatalf("Error to setup engines: %s", err)
 	}
-	go startHTTPServer(&httpServerCtx{indexConfig: ic})
 	ic.start()
+	go startHTTPServer(&httpServerCtx{indexConfig: ic})
 
-	<-sigs
-	ic.batchIndex()
+	<-c
 	ic.config.InfoLogger.Println("Stopping all workers and shutting down")
-
-	os.Exit(exitStatus)
+	ic.batchIndex()
 }

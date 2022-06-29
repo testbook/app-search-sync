@@ -1,0 +1,33 @@
+core-mongo-url = "mongodb://127.0.0.1:27017/tb_dev"
+engagement-mongo-url = "mongodb://127.0.0.1:27017/tb_dev"
+test-mongo-url = "mongodb://127.0.0.1:27017/tb_dev"
+app-search-url = "http://appsearch.testbook..com"
+app-search-api-key = "abc"
+app-search-clients = 1
+direct-reads = false
+verbose = true
+plugin-path = "mappings.so"
+change-streams = true
+resume = false
+stats = true
+flush-interval = 10
+http-server-addr = ":8010"
+pprof = true
+
+#[logs]
+#error = "logs/error.log"
+#info = "logs/info.log"
+
+[[engineConfig]]
+name = "targets"
+namespace = "tb_dev.targets"
+changeStreamNS = "tb_dev.targets"
+directReadNS = "tb_dev.targets"
+functionName = "TargetsMapping"
+
+[[engineConfig]]
+name = "testseries"
+namespace = "tb_dev.test_series"
+changeStreamNS = "tb_dev.test_series"
+directReadNS = "tb_dev.test_series"
+functionName = "TestSeriesMapping"

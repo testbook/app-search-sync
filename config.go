@@ -31,7 +31,9 @@ type configOptions struct {
 	EnableHTTPServer         bool        `toml:"enable-http-server"`
 	HTTPServerAddr           string      `toml:"http-server-addr"` // port for http stats server
 	Logs                     logFiles    `toml:"logs"`
-	MongoURL                 string      `toml:"mongo-url"`
+	CoreMongoURL             string      `toml:"core-mongo-url"`
+	EngagementMongoURL       string      `toml:"engagement-mongo-url"`
+	TestMongoURL             string      `toml:"test-mongo-url"`
 	MongoOpLogDatabaseName   string      `toml:"mongo-oplog-database-name"`
 	MongoOpLogCollectionName string      `toml:"mongo-oplog-collection-name"`
 	GtmSettings              gtmSettings `toml:"gtm-settings"`
@@ -67,7 +69,9 @@ func (config *configOptions) ParseCommandLineFlags() *configOptions {
 	flag.StringVar(&config.AppSearchURL, "app-search-url", "", "App search connection URL")
 	flag.StringVar(&config.AppSearchAPIKey, "app-search-api-key", "", "App search api key")
 	flag.IntVar(&config.AppSearchClients, "app-search-clients", 1, "The number of concurrent app search clients")
-	flag.StringVar(&config.MongoURL, "mongo-url", "", "MongoDB connection URL")
+	flag.StringVar(&config.CoreMongoURL, "core-mongo-url", "", "Core MongoDB connection URL")
+	flag.StringVar(&config.EngagementMongoURL, "engagement-mongo-url", "", "Engagement MongoDB connection URL")
+	flag.StringVar(&config.TestMongoURL, "test-mongo-url", "", "Test MongoDB connection URL")
 	flag.StringVar(&config.MongoOpLogDatabaseName, "mongo-oplog-database-name", "", "Override the database name which contains the mongodb oplog")
 	flag.StringVar(&config.MongoOpLogCollectionName, "mongo-oplog-collection-name", "", "Override the collection name which contains the mongodb oplog")
 	flag.StringVar(&config.ConfigFile, "f", "", "Location of configuration file")
@@ -111,8 +115,14 @@ func (config *configOptions) LoadConfigFile() *configOptions {
 		if config.AppSearchAPIKey == "" {
 			config.AppSearchAPIKey = tomlConfig.AppSearchAPIKey
 		}
-		if config.MongoURL == "" {
-			config.MongoURL = tomlConfig.MongoURL
+		if config.CoreMongoURL == "" {
+			config.CoreMongoURL = tomlConfig.CoreMongoURL
+		}
+		if config.EngagementMongoURL == "" {
+			config.EngagementMongoURL = tomlConfig.EngagementMongoURL
+		}
+		if config.TestMongoURL == "" {
+			config.TestMongoURL = tomlConfig.TestMongoURL
 		}
 		if config.MongoOpLogDatabaseName == "" {
 			config.MongoOpLogDatabaseName = tomlConfig.MongoOpLogDatabaseName
@@ -180,8 +190,14 @@ func (config *configOptions) LoadConfigFile() *configOptions {
 }
 
 func (config *configOptions) SetDefaults() *configOptions {
-	if config.MongoURL == "" {
-		config.MongoURL = mongoUrlDefault
+	if config.CoreMongoURL == "" {
+		config.CoreMongoURL = mongoUrlDefault
+	}
+	if config.EngagementMongoURL == "" {
+		config.EngagementMongoURL = mongoUrlDefault
+	}
+	if config.TestMongoURL == "" {
+		config.TestMongoURL = mongoUrlDefault
 	}
 	if config.ResumeName == "" {
 		config.ResumeName = resumeNameDefault

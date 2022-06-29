@@ -10,7 +10,7 @@ type bulkProcessorStats struct {
 	Created      int64 // # of requests that ES reported as creates (201)
 	Updated      int64 // # of requests that ES reported as updates
 	Deleted      int64 // # of requests that ES reported as deletes
-	Succeeded    int64 // # of requests that ES reported as successful
+	Processed    int64 // # of requests that ES reported as successful
 	Failed       int64 // # of requests that ES reported as failed
 	LastUpdateTs time.Time
 }
@@ -63,11 +63,11 @@ func (s *bulkProcessorStats) AddDeleted(c int) {
 	s.LastUpdateTs = time.Now()
 }
 
-func (s *bulkProcessorStats) AddSucceeded(c int) {
+func (s *bulkProcessorStats) AddProcessed(c int) {
 	if !s.Enabled {
 		return
 	}
-	s.Succeeded += int64(c)
+	s.Processed += int64(c)
 	s.LastUpdateTs = time.Now()
 }
 

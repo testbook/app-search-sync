@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -22,18 +23,20 @@ type indexEngineCtx struct {
 }
 
 type indexClient struct {
-	gtmCtx       *gtm.OpCtxMulti
-	config       *configOptions
-	mongo        *mongo.Client
-	client       client.Client
-	indexWg      *sync.WaitGroup
-	indexMutex   *sync.Mutex
-	indexC       chan *gtm.Op
-	lastTs       primitive.Timestamp
-	tokens       bson.M
-	lastUpdateTs time.Time
-	engines      map[string]*indexEngineCtx
-	stats        *bulkProcessorStats
+	gtmCtx          *gtm.OpCtxMulti
+	config          *configOptions
+	coreMongo       *mongo.Client
+	engagementMongo *mongo.Client
+	testMongo       *mongo.Client
+	client          client.Client
+	indexWg         *sync.WaitGroup
+	indexMutex      *sync.Mutex
+	indexC          chan *gtm.Op
+	lastTs          primitive.Timestamp
+	tokens          bson.M
+	lastUpdateTs    time.Time
+	engines         map[string]*indexEngineCtx
+	stats           *bulkProcessorStats
 }
 
 type dbcol struct {
@@ -82,13 +85,13 @@ func (ic *indexClient) batchIndex() (err error) {
 		docs += len(e.docs)
 		if err = ic.client.Index(e.name, e.docs); err != nil {
 			ic.stats.AddFailed(len(e.docs))
-			break
 		}
 		ic.engines[idx].docs = []interface{}{}
 	}
 
-	ic.stats.AddSucceeded(docs)
-	fmt.Printf("%+v\n", ic.stats)
+	ic.stats.AddProcessed(docs)
+	s, _ := json.Marshal(ic.stats)
+	fmt.Printf("%+v\n", string(s))
 	if ic.config.Verbose {
 		if docs > 0 {
 			ic.config.InfoLogger.Printf("%d docs flushed\n", docs)
@@ -107,12 +110,12 @@ func (ic *indexClient) saveTs() (err error) {
 		return err
 	}
 	if ic.config.ResumeStrategy == tokenResumeStrategy {
-		err = saveTokens(ic.mongo, ic.tokens, ic.config)
+		err = saveTokens(ic.coreMongo, ic.tokens, ic.config)
 		if err == nil {
 			ic.tokens = bson.M{}
 		}
 	} else {
-		err = saveTimestamp(ic.mongo, ic.lastTs, ic.config)
+		err = saveTimestamp(ic.coreMongo, ic.lastTs, ic.config)
 	}
 
 	ic.lastTs = primitive.Timestamp{}
@@ -145,17 +148,20 @@ func (ic *indexClient) addDocument(op *gtm.Op) error {
 
 	if engine.plugin != nil {
 		inp := &plugin.MapperPluginInput{
-			Id:          op.Id,
-			Document:    op.Doc,
-			Data:        op.Data,
-			Database:    op.GetDatabase(),
-			Collection:  op.GetCollection(),
-			Operation:   op.Operation,
-			Namespace:   op.Namespace,
-			MongoClient: ic.mongo,
+			Id:              op.Id,
+			Document:        op.Doc,
+			Data:            op.Data,
+			Database:        op.GetDatabase(),
+			Collection:      op.GetCollection(),
+			Operation:       op.Operation,
+			Namespace:       op.Namespace,
+			CoreMongo:       ic.coreMongo,
+			EngagementMongo: ic.engagementMongo,
+			TestMongo:       ic.testMongo,
 		}
 		upd, err := engine.plugin(inp)
 		if err != nil {
+			err = fmt.Errorf("Error while calling MappingFunc for ns: %s, doc ID: %s, err: %s", op.Namespace, op.Id, err.Error())
 			return err
 		}
 		if upd.Skip {
@@ -187,14 +193,12 @@ func (ic *indexClient) index() {
 			if err == nil {
 				break
 			}
-			exitStatus = 1
 			ic.config.ErrorLogger.Println(err)
 
 		case op, open := <-ic.gtmCtx.OpC:
 			if op == nil {
 				if !open {
 					if err := ic.saveTs(); err != nil {
-						exitStatus = 1
 						ic.config.ErrorLogger.Println(err)
 					}
 					return
@@ -202,13 +206,13 @@ func (ic *indexClient) index() {
 				break
 			}
 			if err := ic.addDocument(op); err != nil {
-				exitStatus = 1
 				ic.config.ErrorLogger.Println(err)
 			}
 		}
 	}
 }
 
+/*
 func (ic *indexClient) directReads() {
 	directReadsFunc := func() {
 		ic.gtmCtx.DirectReadWg.Wait()
@@ -225,6 +229,7 @@ func (ic *indexClient) directReads() {
 		go directReadsFunc()
 	}
 }
+*/
 
 func (ic *indexClient) startIndex() {
 	for i := 0; i < ic.config.AppSearchClients; i += 1 {
@@ -255,5 +260,8 @@ func (ic *indexClient) startFlusher() {
 func (ic *indexClient) start() {
 	ic.startIndex()
 	ic.startFlusher()
-	ic.directReads()
+	//ic.directReads()
+}
+
+func (ic *indexClient) getMongoClient(namespace string) {
 }
