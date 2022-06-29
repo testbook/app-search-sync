@@ -212,15 +212,15 @@ func (ic *indexClient) index() {
 	}
 }
 
-/*
 func (ic *indexClient) directReads() {
 	directReadsFunc := func() {
 		ic.gtmCtx.DirectReadWg.Wait()
 		ic.config.InfoLogger.Println("Direct reads completed")
 
-		if ic.config.Resume && ic.config.ResumeStrategy == timestampResumeStrategy {
-			saveTimestampFromReplStatus(ic.mongo, ic.config)
-		}
+		// Resume not supported for direct read
+		//if ic.config.Resume && ic.config.ResumeStrategy == timestampResumeStrategy {
+			//saveTimestampFromReplStatus(ic.mongo, ic.config)
+		//}
 		if ic.config.ExitAfterDirectReads {
 			ic.gtmCtx.Stop()
 		}
@@ -229,7 +229,6 @@ func (ic *indexClient) directReads() {
 		go directReadsFunc()
 	}
 }
-*/
 
 func (ic *indexClient) startIndex() {
 	for i := 0; i < ic.config.AppSearchClients; i += 1 {
@@ -260,7 +259,7 @@ func (ic *indexClient) startFlusher() {
 func (ic *indexClient) start() {
 	ic.startIndex()
 	ic.startFlusher()
-	//ic.directReads()
+	ic.directReads()
 }
 
 func (ic *indexClient) getMongoClient(namespace string) {
