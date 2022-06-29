@@ -10,7 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 	client "github.com/testbook/app-search-client"
 	. "github.com/testbook/app-search-sync/plugin"
-	"gopkg.in/natefinch/lumberjack.v2"
+	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 )
 
 type engineConfig struct {
@@ -167,10 +167,10 @@ func (config *configOptions) LoadConfigFile() *configOptions {
 		}
 
 		if config.Logs.Error == "" && tomlConfig.Logs.Error != "" {
-			config.ErrorLogger.SetOutput(config.newLogger(config.Logs.Error))
+			config.ErrorLogger.SetOutput(config.newLogger(tomlConfig.Logs.Error))
 		}
 		if config.Logs.Error == "" && tomlConfig.Logs.Info != "" {
-			config.InfoLogger.SetOutput(config.newLogger(config.Logs.Info))
+			config.InfoLogger.SetOutput(config.newLogger(tomlConfig.Logs.Info))
 		}
 
 		config.GtmSettings = tomlConfig.GtmSettings
