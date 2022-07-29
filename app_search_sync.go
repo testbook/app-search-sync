@@ -56,7 +56,7 @@ func main() {
 	}
 	defer client.Close()
 
-	gtmCtx := gtm.StartMulti([]*mongo.Client{coreMongo}, config.buildGtmOptions())
+	gtmCtx := gtm.StartMulti([]*mongo.Client{coreMongo, testMongo}, config.buildGtmOptions())
 	defer gtmCtx.Stop()
 	ic := &indexClient{
 		indexMutex:      &sync.Mutex{},
