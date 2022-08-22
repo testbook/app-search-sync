@@ -1,0 +1,42 @@
+src-mongo-url = "mongodb://nirav.panchal:npeGLsC2sL1a98ht28iE@35.200.205.153:27017/tb_dev?directConnection=true"
+dst-mongo-url = "mongodb://nirav.panchal:npeGLsC2sL1a98ht28iE@35.200.205.153:27018/tb_dev?directConnection=true"
+direct-reads = false
+verbose = true
+change-streams = true
+resume = false
+stats = true
+flush-interval = 10
+http-server-addr = ":8010"
+pprof = true
+
+#[logs]
+#error = "logs/error.log"
+#info = "logs/info.log"
+
+[[engineConfig]]
+name = "targets"
+namespace = "tb_dev.targets"
+changeStreamNS = "tb_dev.targets"
+directReadNS = "tb_dev.targets"
+functionName = "TargetsMapping"
+
+[[engineConfig]]
+name = "testseries"
+namespace = "tb_dev.test_series"
+changeStreamNS = "tb_dev.test_series"
+directReadNS = "tb_dev.test_series"
+functionName = "TestSeriesMapping"
+
+[[engineConfig]]
+name = "test"
+namespace = "tb_dev.tests"
+changeStreamNS = "tb_dev.tests"
+directReadNS = "tb_dev.tests"
+functionName = "TestsMapping"
+
+[[engineConfig]]
+name = "classes"
+namespace = "tb_dev.classes"
+changeStreamNS = "tb_dev.classes"
+directReadNS = "tb_dev.classes"
+functionName = "ClassMapping"
