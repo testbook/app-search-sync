@@ -42,13 +42,13 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 
-	coreMongo, engagementMongo, testMongo, err := config.DialMongo()
+	srcMongo, dstMongo, err := config.DialMongo()
 	if err != nil {
 		config.ErrorLogger.Fatalf("Unable to connect to mongodb: %s", err)
 	}
-	defer coreMongo.Disconnect(context.Background())
-	defer engagementMongo.Disconnect(context.Background())
-	defer testMongo.Disconnect(context.Background())
+	defer srcMongo.Disconnect(context.Background())
+	defer dstMongo.Disconnect(context.Background())
+	//defer testMongo.Disconnect(context.Background())
 
 	client, err := client.NewHTTPClient(config.GetHTTPConfig())
 	if err != nil {
@@ -56,17 +56,19 @@ func main() {
 	}
 	defer client.Close()
 
-	gtmCtx := gtm.StartMulti([]*mongo.Client{coreMongo}, config.buildGtmOptions())
+	gtmCtx := gtm.StartMulti([]*mongo.Client{srcMongo, dstMongo}, config.buildGtmOptions())
 	defer gtmCtx.Stop()
 	ic := &indexClient{
-		indexMutex:      &sync.Mutex{},
-		tokens:          bson.M{},
-		client:          client,
-		config:          config,
-		gtmCtx:          gtmCtx,
-		coreMongo:       coreMongo,
-		engagementMongo: engagementMongo,
-		testMongo:       testMongo,
+		indexMutex: &sync.Mutex{},
+		tokens:     bson.M{},
+		client:     client,
+		config:     config,
+		gtmCtx:     gtmCtx,
+		// coreMongo:       coreMongo,
+		// engagementMongo: engagementMongo,
+		// testMongo:       testMongo,
+		srcMongo: srcMongo,
+		dstMongo: dstMongo,
 		stats: &bulkProcessorStats{
 			Enabled: config.Stats,
 		},

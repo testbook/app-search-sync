@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type indexEngineCtx struct {
@@ -25,6 +27,8 @@ type indexEngineCtx struct {
 type indexClient struct {
 	gtmCtx          *gtm.OpCtxMulti
 	config          *configOptions
+	srcMongo        *mongo.Client
+	dstMongo        *mongo.Client
 	coreMongo       *mongo.Client
 	engagementMongo *mongo.Client
 	testMongo       *mongo.Client
@@ -122,66 +126,42 @@ func (ic *indexClient) saveTs() (err error) {
 	return err
 }
 
-func (ic *indexClient) lookupInView(orig *gtm.Op, namespace string) (op *gtm.Op, err error) {
-	op = &gtm.Op{
-		Id:        orig.Id,
-		Operation: orig.Operation,
-		Namespace: namespace,
-		Source:    gtm.DirectQuerySource,
-		Timestamp: orig.Timestamp,
+func (ic *indexClient) insert(op *gtm.Op) error {
+	dbcol, err := parseNamespace(op.Namespace)
+	if err != nil {
+		return err
 	}
-	return
-}
+	res := ic.srcMongo.Database(dbcol.db).Collection(dbcol.col).FindOne(context.Background(), bson.M{"_id": op.Id})
+	if res.Err() != nil {
 
+	}
+	var doc bson.M
+	err = res.Decode(&doc)
+	_, err = ic.dstMongo.Database(op.Namespace).Collection(dbcol.col).UpdateOne(context.Background(), bson.M{"_id": op.Id}, doc, options.Update().SetUpsert(true))
+	return err
+}
+func (ic *indexClient) delete(op *gtm.Op) error {
+	dbcol, err := parseNamespace(op.Namespace)
+	if err != nil {
+		return err
+	}
+	res := ic.srcMongo.Database(dbcol.db).Collection(dbcol.col).FindOne(context.Background(), bson.M{"_id": op.Id})
+	if res.Err() != nil {
+
+	}
+	_, err = ic.dstMongo.Database(op.Namespace).Collection(dbcol.col).DeleteOne(context.Background(), bson.M{"_id": op.Id})
+	return err
+}
 func (ic *indexClient) addDocument(op *gtm.Op) error {
 	engine := ic.engines[op.Namespace]
 	if engine == nil {
 		return nil
 	}
-	if engine.namespace != "" && op.IsSourceOplog() {
-		var err error
-		op, err = ic.lookupInView(op, engine.namespace) // fetch from mongo
-		if err != nil {
-			return err
-		}
-	}
-
-	if engine.plugin != nil {
-		inp := &plugin.MapperPluginInput{
-			Id:              op.Id,
-			Document:        op.Doc,
-			Data:            op.Data,
-			Database:        op.GetDatabase(),
-			Collection:      op.GetCollection(),
-			Operation:       op.Operation,
-			Namespace:       op.Namespace,
-			CoreMongo:       ic.coreMongo,
-			EngagementMongo: ic.engagementMongo,
-			TestMongo:       ic.testMongo,
-		}
-		upd, err := engine.plugin(inp)
-		if err != nil {
-			err = fmt.Errorf("Error while calling MappingFunc for ns: %s, doc ID: %s, err: %s", op.Namespace, op.Id, err.Error())
-			return err
-		}
-		if upd.Skip {
-			return nil
-		}
-		op.Doc = upd.Document
-	}
-	engine.docs = append(engine.docs, op.Doc)
-
-	if op.IsSourceOplog() {
-		ic.lastTs = op.Timestamp
-		if ic.config.ResumeStrategy == tokenResumeStrategy {
-			ic.tokens[op.ResumeToken.StreamID] = op.ResumeToken.ResumeToken
-		}
-	}
-
-	if len(engine.docs) >= ic.config.FlushBufferSize {
-		if err := ic.batchIndex(); err != nil {
-			return err
-		}
+	switch op.Operation {
+	case "insert", "update", "replace":
+		return ic.insert(op)
+	case "delete":
+		return ic.delete(op)
 	}
 	return nil
 }
@@ -212,30 +192,6 @@ func (ic *indexClient) index() {
 	}
 }
 
-func (ic *indexClient) directReads() {
-	directReadsFunc := func() {
-		ic.gtmCtx.DirectReadWg.Wait()
-		ic.config.InfoLogger.Println("Direct reads completed")
-
-		// Resume not supported for direct read
-		//if ic.config.Resume && ic.config.ResumeStrategy == timestampResumeStrategy {
-			//saveTimestampFromReplStatus(ic.mongo, ic.config)
-		//}
-		if ic.config.ExitAfterDirectReads {
-			ic.gtmCtx.Stop()
-		}
-	}
-	if ic.config.DirectReads {
-		go directReadsFunc()
-	}
-}
-
-func (ic *indexClient) startIndex() {
-	for i := 0; i < ic.config.AppSearchClients; i += 1 {
-		go ic.index()
-	}
-}
-
 func (ic *indexClient) flusher(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -257,10 +213,6 @@ func (ic *indexClient) startFlusher() {
 }
 
 func (ic *indexClient) start() {
-	ic.startIndex()
+	go ic.index()
 	ic.startFlusher()
-	ic.directReads()
-}
-
-func (ic *indexClient) getMongoClient(namespace string) {
 }

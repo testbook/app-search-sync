@@ -228,6 +228,7 @@ func (config *configOptions) LoadPlugin() *configOptions {
 		return config
 	}
 	p, err := plugin.Open(config.PluginPath)
+
 	if err != nil {
 		config.ErrorLogger.Fatalf("Unable to load plugin <%s>: %s", config.PluginPath, err)
 	}

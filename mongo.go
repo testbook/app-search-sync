@@ -66,20 +66,22 @@ func cleanMongoURL(URL string) string {
 	return url
 }
 
-func (config *configOptions) DialMongo() (core, engagement, test *mongo.Client, err error) {
-	coreMongo, err := dialMongo(config.CoreMongoURL, config.Resume, config.ResumeWriteUnsafe)
+func (config *configOptions) DialMongo() (srcMongo, dstMongo *mongo.Client, err error) {
+	// coreMongo, err := dialMongo(config.CoreMongoURL, config.Resume, config.ResumeWriteUnsafe)
+	// if err != nil {
+	// 	return
+	// }
+	// engagementMongo, err := dialMongo(config.EngagementMongoURL, config.Resume, config.ResumeWriteUnsafe)
+	// if err != nil {
+	// 	return
+	// }
+	// testMongo, err := dialMongo(config.TestMongoURL, config.Resume, config.ResumeWriteUnsafe)
+	srcMongo, err = dialMongo(config.TestMongoURL, config.Resume, config.ResumeWriteUnsafe)
+	dstMongo, err = dialMongo(config.TestMongoURL, config.Resume, config.ResumeWriteUnsafe)
 	if err != nil {
 		return
 	}
-	engagementMongo, err := dialMongo(config.EngagementMongoURL, config.Resume, config.ResumeWriteUnsafe)
-	if err != nil {
-		return
-	}
-	testMongo, err := dialMongo(config.TestMongoURL, config.Resume, config.ResumeWriteUnsafe)
-	if err != nil {
-		return
-	}
-	return coreMongo, engagementMongo, testMongo, nil
+	return srcMongo, dstMongo, nil
 }
 
 func dialMongo(url string, resume, resumeWriteUnsafe bool) (*mongo.Client, error) {
