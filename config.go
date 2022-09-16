@@ -32,6 +32,7 @@ type configOptions struct {
 	HTTPServerAddr           string      `toml:"http-server-addr"` // port for http stats server
 	Logs                     logFiles    `toml:"logs"`
 	CoreMongoURL             string      `toml:"core-mongo-url"`
+	LearnMongoURL            string      `toml:"learn-mongo-url"`
 	EngagementMongoURL       string      `toml:"engagement-mongo-url"`
 	TestMongoURL             string      `toml:"test-mongo-url"`
 	MongoOpLogDatabaseName   string      `toml:"mongo-oplog-database-name"`
@@ -70,6 +71,7 @@ func (config *configOptions) ParseCommandLineFlags() *configOptions {
 	flag.StringVar(&config.AppSearchAPIKey, "app-search-api-key", "", "App search api key")
 	flag.IntVar(&config.AppSearchClients, "app-search-clients", 1, "The number of concurrent app search clients")
 	flag.StringVar(&config.CoreMongoURL, "core-mongo-url", "", "Core MongoDB connection URL")
+	flag.StringVar(&config.LearnMongoURL, "learn-mongo-url", "", "Learn MongoDB connection URL")
 	flag.StringVar(&config.EngagementMongoURL, "engagement-mongo-url", "", "Engagement MongoDB connection URL")
 	flag.StringVar(&config.TestMongoURL, "test-mongo-url", "", "Test MongoDB connection URL")
 	flag.StringVar(&config.MongoOpLogDatabaseName, "mongo-oplog-database-name", "", "Override the database name which contains the mongodb oplog")
@@ -117,6 +119,9 @@ func (config *configOptions) LoadConfigFile() *configOptions {
 		}
 		if config.CoreMongoURL == "" {
 			config.CoreMongoURL = tomlConfig.CoreMongoURL
+		}
+		if config.LearnMongoURL == "" {
+			config.LearnMongoURL = tomlConfig.LearnMongoURL
 		}
 		if config.EngagementMongoURL == "" {
 			config.EngagementMongoURL = tomlConfig.EngagementMongoURL
@@ -192,6 +197,9 @@ func (config *configOptions) LoadConfigFile() *configOptions {
 func (config *configOptions) SetDefaults() *configOptions {
 	if config.CoreMongoURL == "" {
 		config.CoreMongoURL = mongoUrlDefault
+	}
+	if config.LearnMongoURL == "" {
+		config.LearnMongoURL = mongoUrlDefault
 	}
 	if config.EngagementMongoURL == "" {
 		config.EngagementMongoURL = mongoUrlDefault

@@ -1,4 +1,5 @@
 core-mongo-url = "mongodb://127.0.0.1:27017/tb_dev"
+learn-mongo-url = "mongodb://127.0.0.1:27017/tb_dev"
 engagement-mongo-url = "mongodb://127.0.0.1:27017/tb_dev"
 test-mongo-url = "mongodb://127.0.0.1:27017/tb_dev"
 app-search-url = "http://appsearch.testbook..com"

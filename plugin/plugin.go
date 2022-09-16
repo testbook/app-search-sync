@@ -15,6 +15,7 @@ type MapperPluginInput struct {
 	Namespace         string                 // the entire namespace for the original document
 	Operation         string                 // "i" for a insert or "u" for update
 	CoreMongo         *mongo.Client          // Core MongoDB driver client
+	LearnMongo        *mongo.Client          // Learn MongoDB driver client
 	EngagementMongo   *mongo.Client          // Engagement MongoDB driver client
 	TestMongo         *mongo.Client          // Test MongoDB driver client
 	UpdateDescription map[string]interface{} // map describing changes to the document

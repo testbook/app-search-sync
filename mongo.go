@@ -66,8 +66,12 @@ func cleanMongoURL(URL string) string {
 	return url
 }
 
-func (config *configOptions) DialMongo() (core, engagement, test *mongo.Client, err error) {
+func (config *configOptions) DialMongo() (core, learn, engagement, test *mongo.Client, err error) {
 	coreMongo, err := dialMongo(config.CoreMongoURL, config.Resume, config.ResumeWriteUnsafe)
+	if err != nil {
+		return
+	}
+	learnMongo, err := dialMongo(config.LearnMongoURL, config.Resume, config.ResumeWriteUnsafe)
 	if err != nil {
 		return
 	}
@@ -79,7 +83,7 @@ func (config *configOptions) DialMongo() (core, engagement, test *mongo.Client, 
 	if err != nil {
 		return
 	}
-	return coreMongo, engagementMongo, testMongo, nil
+	return coreMongo, learnMongo, engagementMongo, testMongo, nil
 }
 
 func dialMongo(url string, resume, resumeWriteUnsafe bool) (*mongo.Client, error) {

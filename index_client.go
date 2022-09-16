@@ -26,6 +26,7 @@ type indexClient struct {
 	gtmCtx          *gtm.OpCtxMulti
 	config          *configOptions
 	coreMongo       *mongo.Client
+	learnMongo      *mongo.Client
 	engagementMongo *mongo.Client
 	testMongo       *mongo.Client
 	client          client.Client
@@ -156,6 +157,7 @@ func (ic *indexClient) addDocument(op *gtm.Op) error {
 			Operation:       op.Operation,
 			Namespace:       op.Namespace,
 			CoreMongo:       ic.coreMongo,
+			LearnMongo:      ic.learnMongo,
 			EngagementMongo: ic.engagementMongo,
 			TestMongo:       ic.testMongo,
 		}
@@ -219,7 +221,7 @@ func (ic *indexClient) directReads() {
 
 		// Resume not supported for direct read
 		//if ic.config.Resume && ic.config.ResumeStrategy == timestampResumeStrategy {
-			//saveTimestampFromReplStatus(ic.mongo, ic.config)
+		//saveTimestampFromReplStatus(ic.mongo, ic.config)
 		//}
 		if ic.config.ExitAfterDirectReads {
 			ic.gtmCtx.Stop()

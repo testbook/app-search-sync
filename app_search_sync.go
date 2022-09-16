@@ -42,11 +42,12 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 
-	coreMongo, engagementMongo, testMongo, err := config.DialMongo()
+	coreMongo, learnMongo, engagementMongo, testMongo, err := config.DialMongo()
 	if err != nil {
 		config.ErrorLogger.Fatalf("Unable to connect to mongodb: %s", err)
 	}
 	defer coreMongo.Disconnect(context.Background())
+	defer learnMongo.Disconnect(context.Background())
 	defer engagementMongo.Disconnect(context.Background())
 	defer testMongo.Disconnect(context.Background())
 
@@ -56,7 +57,7 @@ func main() {
 	}
 	defer client.Close()
 
-	gtmCtx := gtm.StartMulti([]*mongo.Client{coreMongo, testMongo}, config.buildGtmOptions())
+	gtmCtx := gtm.StartMulti([]*mongo.Client{coreMongo, learnMongo, testMongo}, config.buildGtmOptions())
 	defer gtmCtx.Stop()
 	ic := &indexClient{
 		indexMutex:      &sync.Mutex{},
@@ -65,6 +66,7 @@ func main() {
 		config:          config,
 		gtmCtx:          gtmCtx,
 		coreMongo:       coreMongo,
+		learnMongo:      learnMongo,
 		engagementMongo: engagementMongo,
 		testMongo:       testMongo,
 		stats: &bulkProcessorStats{
